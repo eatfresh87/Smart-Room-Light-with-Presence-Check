@@ -68,25 +68,30 @@ trigger:
   - platform: state
     entity_id: !input door_sensor
     to: 'on'
+    id: door_open_or_motion
   # Trigger 2: Motion is detected.
   - platform: state
     entity_id: !input motion_sensor
     to: 'on'
+    id: motion_detected
   # Trigger 3: Door is closed. This will start the turn-off sequence.
   - platform: state
     entity_id: !input door_sensor
     to: 'off'
+    id: door_closed
   # Trigger 4: Switch is turned on. This is to handle the manual override.
   - platform: state
     entity_id: !input target_switch
     to: 'on'
+    id: switch_turned_on
 
 # The action block uses a `choose` statement to handle different triggers.
 action:
   - choose:
-      # Case 1: The door opens or motion is detected.
+      # Case 1: The door opens or motion is detected, and the switch is off.
       - conditions:
-          - or:
+          - condition: or
+            conditions:
               - condition: trigger
                 id: door_open_or_motion
               - condition: trigger
