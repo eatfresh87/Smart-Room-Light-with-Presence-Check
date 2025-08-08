@@ -1,0 +1,165 @@
+blueprint:
+  name: Smart Room Light with Presence Check
+  description: >
+    Turns on a light when a door opens or motion is detected. After the door closes,
+    it asks a question on a media player and waits for a response before turning off
+    the light. Includes a manual override check.
+  domain: automation
+  source_url: 'https://github.com/your-username/your-repo/your_blueprint.yaml' # You can update this with your own URL if you host the blueprint
+  input:
+    door_sensor:
+      name: Door Sensor
+      description: The entity for your door or window sensor.
+      selector:
+        entity:
+          domain: binary_sensor
+          device_class: door
+    motion_sensor:
+      name: Motion Sensor
+      description: The entity for your motion sensor.
+      selector:
+        entity:
+          domain: binary_sensor
+          device_class: motion
+    target_light:
+      name: Target Light
+      description: The light entity to control.
+      selector:
+        entity:
+          domain: light
+    media_player:
+      name: Media Player
+      description: The media player entity for text-to-speech announcements.
+      selector:
+        entity:
+          domain: media_player
+    automation_flag_helper:
+      name: Automation Flag Helper
+      description: >
+        An input_boolean helper that this automation will use to track if it turned
+        on the light. This is crucial for handling the manual override.
+      selector:
+        entity:
+          domain: input_boolean
+    door_closed_delay:
+      name: Delay after door closes
+      description: How long to wait after the door closes before starting the turn-off sequence (in seconds).
+      default: 30
+      selector:
+        number:
+          min: 0
+          max: 600
+          unit_of_measurement: seconds
+    motion_timeout:
+      name: Motion Timeout
+      description: >
+        How long the system will wait for motion to be detected before
+        asking the question (in seconds).
+      default: 300
+      selector:
+        number:
+          min: 0
+          max: 1800
+          unit_of_measurement: seconds
+
+# This is the main automation that combines all the logic.
+trigger:
+  # Trigger 1: Door is opened.
+  - platform: state
+    entity_id: !input door_sensor
+    to: 'on'
+  # Trigger 2: Motion is detected.
+  - platform: state
+    entity_id: !input motion_sensor
+    to: 'on'
+  # Trigger 3: Door is closed. This will start the turn-off sequence.
+  - platform: state
+    entity_id: !input door_sensor
+    to: 'off'
+  # Trigger 4: Light is turned on. This is to handle the manual override.
+  - platform: state
+    entity_id: !input target_light
+    to: 'on'
+
+# The action block uses a `choose` statement to handle different triggers.
+action:
+  - choose:
+      # Case 1: The door opens or motion is detected.
+      - conditions:
+          - or:
+              - condition: trigger
+                id: door_open_or_motion
+              - condition: trigger
+                id: motion_detected
+          - condition: state
+            entity_id: !input target_light
+            state: 'off'
+        sequence:
+          - service: light.turn_on
+            target:
+              entity_id: !input target_light
+          - service: input_boolean.turn_on
+            target:
+              entity_id: !input automation_flag_helper
+      # Case 2: The door is closed, and the automation flag is on.
+      - conditions:
+          - condition: trigger
+            id: door_closed
+          - condition: state
+            entity_id: !input automation_flag_helper
+            state: 'on'
+        sequence:
+          - delay: '{{ states(''input_number.door_closed_delay'') | int }}'
+          - alias: 'Wait for motion or timeout'
+            wait_for_trigger:
+              - platform: state
+                entity_id: !input motion_sensor
+                to: 'on'
+            timeout: '{{ states(''input_number.motion_timeout'') | int }}'
+            continue_on_timeout: true
+          - if:
+              - condition: not
+                conditions:
+                  - condition: trigger
+                    id: motion_detected
+            then:
+              - alias: 'Ask if someone is in the room'
+                service: tts.google_say # Change to your tts service (e.g., alexa_media.say)
+                data:
+                  entity_id: !input media_player
+                  message: "It seems the door is closed. Is anyone still in the room?"
+              - alias: 'Wait for response motion'
+                wait_for_trigger:
+                  - platform: state
+                    entity_id: !input motion_sensor
+                    to: 'on'
+                timeout: '00:00:20' # Wait for 20 seconds for motion to be detected.
+                continue_on_timeout: true
+              - if:
+                  - condition: not
+                    conditions:
+                      - condition: trigger
+                        id: motion_detected_response
+                then:
+                  - service: light.turn_off
+                    target:
+                      entity_id: !input target_light
+                  - service: input_boolean.turn_off
+                    target:
+                      entity_id: !input automation_flag_helper
+      # Case 3: A manual override is detected.
+      - conditions:
+          - condition: trigger
+            id: light_turned_on
+          - condition: state
+            entity_id: !input door_sensor
+            state: 'off'
+          - condition: state
+            entity_id: !input motion_sensor
+            state: 'off'
+        sequence:
+          - service: input_boolean.turn_off
+            target:
+              entity_id: !input automation_flag_helper
+
+mode: single
