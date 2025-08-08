@@ -148,7 +148,7 @@ action:
                 service: tts.google_say # Change to your tts service (e.g., alexa_media.say)
                 data:
                   entity_id: !input media_player
-                  message: "It seems the door is closed. Is anyone still in the room?"
+                  message: "It seems the door is closed. Is anyone still in the room? if so, please move around."
               - alias: 'Wait for response motion'
                 wait_for_trigger:
                   - platform: state
@@ -203,4 +203,5 @@ action:
                   entity_id: !input automation_flag_helper
 
 mode: single
+
 
