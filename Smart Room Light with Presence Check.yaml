@@ -1,9 +1,9 @@
 blueprint:
-  name: Smart Room Light with Presence Check
+  name: Smart Room Switch with Presence Check
   description: >
-    Turns on a light when a door opens or motion is detected. After the door closes,
+    Turns on a switch when a door opens or motion is detected. After the door closes,
     it asks a question on a media player and waits for a response before turning off
-    the light. Includes a manual override check.
+    the switch. Includes a manual override check.
   domain: automation
   source_url: 'https://github.com/your-username/your-repo/your_blueprint.yaml' # You can update this with your own URL if you host the blueprint
   input:
@@ -21,12 +21,12 @@ blueprint:
         entity:
           domain: binary_sensor
           device_class: motion
-    target_light:
-      name: Target Light
-      description: The light entity to control.
+    target_switch:
+      name: Target Switch
+      description: The switch entity to control.
       selector:
         entity:
-          domain: light
+          domain: switch
     media_player:
       name: Media Player
       description: The media player entity for text-to-speech announcements.
@@ -37,7 +37,7 @@ blueprint:
       name: Automation Flag Helper
       description: >
         An input_boolean helper that this automation will use to track if it turned
-        on the light. This is crucial for handling the manual override.
+        on the switch. This is crucial for handling the manual override.
       selector:
         entity:
           domain: input_boolean
@@ -76,9 +76,9 @@ trigger:
   - platform: state
     entity_id: !input door_sensor
     to: 'off'
-  # Trigger 4: Light is turned on. This is to handle the manual override.
+  # Trigger 4: Switch is turned on. This is to handle the manual override.
   - platform: state
-    entity_id: !input target_light
+    entity_id: !input target_switch
     to: 'on'
 
 # The action block uses a `choose` statement to handle different triggers.
@@ -92,12 +92,12 @@ action:
               - condition: trigger
                 id: motion_detected
           - condition: state
-            entity_id: !input target_light
+            entity_id: !input target_switch
             state: 'off'
         sequence:
-          - service: light.turn_on
+          - service: switch.turn_on
             target:
-              entity_id: !input target_light
+              entity_id: !input target_switch
           - service: input_boolean.turn_on
             target:
               entity_id: !input automation_flag_helper
@@ -141,16 +141,16 @@ action:
                       - condition: trigger
                         id: motion_detected_response
                 then:
-                  - service: light.turn_off
+                  - service: switch.turn_off
                     target:
-                      entity_id: !input target_light
+                      entity_id: !input target_switch
                   - service: input_boolean.turn_off
                     target:
                       entity_id: !input automation_flag_helper
       # Case 3: A manual override is detected.
       - conditions:
           - condition: trigger
-            id: light_turned_on
+            id: switch_turned_on
           - condition: state
             entity_id: !input door_sensor
             state: 'off'
@@ -163,3 +163,4 @@ action:
               entity_id: !input automation_flag_helper
 
 mode: single
+
